@@ -20,45 +20,21 @@ body,html{margin:0;padding:0;height:100%;font-family:sans-serif;}
 #viewUI{pointer-events:auto;backdrop-filter: blur(8px);border:1px solid rgba(0,0,0,0.1);}
 button{transition:.15s;}
 button:hover{transform:scale(1.03);}
-#startScreen{
-    position:fixed; inset:0; z-index:2000; display:flex; flex-direction:column; justify-content:center; align-items:center;
-    background:linear-gradient(to bottom, #4c91d0, #1a2c47);
-    color:white;
-    font-family:sans-serif;
-}
-#startScreen h1{
-    font-size:4rem;
-    font-weight:900;
-    text-shadow: 2px 2px 6px rgba(0,0,0,0.5);
-    margin-bottom:1.5rem;
-}
-#startScreen button{
-    background:#ffcc00;
-    color:#1a2c47;
-    font-weight:700;
-    padding:1rem 3rem;
-    border-radius:12px;
-    box-shadow:0 5px 15px rgba(0,0,0,0.3);
-    font-size:1.5rem;
-}
-#startScreen button:hover{
-    transform:scale(1.05);
-    box-shadow:0 8px 20px rgba(0,0,0,0.5);
-}
+#startScreen{ position:fixed; inset:0; z-index:2000; display:flex; flex-direction:column; justify-content:center; align-items:center; background:linear-gradient(to bottom, #4c91d0, #1a2c47); color:white; font-family:sans-serif; }
+#startScreen h1{ font-size:4rem; font-weight:900; text-shadow: 2px 2px 6px rgba(0,0,0,0.5); margin-bottom:1.5rem; }
+#startScreen button{ background:#ffcc00; color:#1a2c47; font-weight:700; padding:1rem 3rem; border-radius:12px; box-shadow:0 5px 15px rgba(0,0,0,0.3); font-size:1.5rem; }
+#startScreen button:hover{ transform:scale(1.05); box-shadow:0 8px 20px rgba(0,0,0,0.5); }
 </style>
 </head>
 <body>
-
 <div id="startScreen">
 <h1>Geo Trainer</h1>
 <button onclick="startApp()">PLAY</button>
 </div>
-
 <div id="map">
 <div id="editOverlay"></div>
 <div id="shiftOverlay"></div>
 </div>
-
 <div id="modal" class="hidden fixed inset-0 z-[3000] flex items-center justify-center bg-black/40">
 <div class="bg-white p-5 rounded-xl w-[340px] shadow-xl">
 <textarea id="note" class="w-full border p-2 mb-3" placeholder="特徴"></textarea>
@@ -70,7 +46,6 @@ button:hover{transform:scale(1.03);}
 </div>
 </div>
 </div>
-
 <div id="viewUI" class="hidden fixed bottom-5 right-5 bg-white/90 p-4 rounded-xl shadow-xl w-[300px] z-[3000]">
 <div id="viewText" class="mb-2"></div>
 <img id="viewImg" class="hidden w-full mb-2 rounded">
@@ -78,7 +53,6 @@ button:hover{transform:scale(1.03);}
 </div>
 
 <script>
-// ここから下は以前の機能そのまま
 let map, baseLayer, labelLayer, layerGroup;
 let editMode=false, armed=false, drawing=false, startLatLng=null, tempRect=null;
 let shiftMode=false, shiftMarker=null;
@@ -113,46 +87,90 @@ function updateMapStyle(){
     const z=map.getZoom();
     if(z<=3){ if(!map.hasLayer(labelLayer)) labelLayer.addTo(map);}
     else{ if(map.hasLayer(labelLayer)) map.removeLayer(labelLayer);}
+    if(shiftMarker) updateShiftMarkerTransform(shiftMarker);
 }
 
 function bindMapEvents(){
-    map.on('contextmenu',(e)=>{ e.originalEvent.preventDefault(); editMode=true; armed=true; setEditUI(true); });
+    map.on('contextmenu',(e)=>{
+        e.originalEvent.preventDefault();
+        editMode=true;
+        armed=true;
+        setEditUI(true);
+    });
 
+    // SHIFT+左クリックで星マーカー
     map.on('mousedown',(e)=>{
         if(e.originalEvent.shiftKey && e.originalEvent.button===0){
-            shiftMode=true; startLatLng=e.latlng;
-            map.dragging.disable(); shiftOverlay.classList.add('active');
+            shiftMode=true;
+            startLatLng=e.latlng;
+            map.dragging.disable();
+            shiftOverlay.classList.add('active');
             if(shiftMarker) layerGroup.removeLayer(shiftMarker);
-            shiftMarker=L.marker(startLatLng,{icon:L.divIcon({className:'pinWrap',html:'<svg width="30" height="30" viewBox="0 0 24 24"><path fill="#ff0000" stroke="white" stroke-width="1" d="M12 2l3 7h7l-5.5 4 2 7-6-4-6 4 2-7-5.5-4h7z"/></svg>',iconSize:[30,30],iconAnchor:[15,30]}),draggable:true}).addTo(layerGroup);
-            shiftMarker.on('drag',function(e){ let scale=Math.min(Math.max(0.5,e.target._latlng.lat/20),2); e.target.getElement().style.transform=`translate(-50%,-100%) scale(${scale})`; });
+
+            shiftMarker=L.marker(startLatLng,{
+                icon:L.divIcon({
+                    className:'pinWrap',
+                    html:`<svg width="30" height="30" viewBox="0 0 24 24">
+                            <path fill="#ff0000" stroke="white" stroke-width="1"
+                                  d="M12 2l3 7h7l-5.5 4 2 7-6-4-6 4 2-7-5.5-4h7z"/>
+                          </svg>`,
+                    iconSize:[30,30],
+                    iconAnchor:[15,30]
+                }),
+                draggable:true
+            }).addTo(layerGroup);
+
+            shiftMarker.on('drag', (ev)=>{ updateShiftMarkerTransform(ev.target); });
+
+            map.on('zoomend', ()=>{ if(shiftMarker) updateShiftMarkerTransform(shiftMarker); });
         }
+
         if(editMode && armed && e.originalEvent.button===0){
-            drawing=true; armed=false; startLatLng=e.latlng;
+            drawing=true;
+            armed=false;
+            startLatLng=e.latlng;
             if(tempRect) layerGroup.removeLayer(tempRect);
             currentKey="pin_"+Date.now();
         }
     });
 
     map.on('mousemove',(e)=>{
-        if(drawing){ if(tempRect) layerGroup.removeLayer(tempRect); tempRect=L.rectangle(L.latLngBounds(startLatLng,e.latlng),{weight:1}).addTo(layerGroup);}
-        if(shiftMode && shiftMarker){ shiftMarker.setLatLng(e.latlng);}
+        if(drawing){
+            if(tempRect) layerGroup.removeLayer(tempRect);
+            tempRect=L.rectangle(L.latLngBounds(startLatLng,e.latlng),{weight:1}).addTo(layerGroup);
+        }
+        if(shiftMode && shiftMarker){
+            shiftMarker.setLatLng(e.latlng);
+        }
     });
 
     map.on('mouseup',(e)=>{
-        if(drawing){ drawing=false; openModal();}
-        if(shiftMode){ shiftMode=false; map.dragging.enable(); shiftOverlay.classList.remove('active'); currentKey="pin_"+Date.now(); openModal();}
+        if(drawing){ drawing=false; openModal(); }
+        if(shiftMode){
+            shiftMode=false; map.dragging.enable(); shiftOverlay.classList.remove('active');
+            currentKey="pin_"+Date.now(); openModal();
+        }
     });
 }
 
+function updateShiftMarkerTransform(marker){
+    const el = marker.getElement();
+    if(!el) return;
+    let scale = Math.min(Math.max(0.5, marker.getLatLng().lat/20),2);
+    el.style.transform = `translate(-50%,-100%) scale(${scale})`;
+}
+
 function setEditUI(on){ editMode=on; document.getElementById('editOverlay').classList.toggle('active',on); map.dragging[on?'disable':'enable'](); }
-
 function openModal(){ modal.classList.remove('hidden'); note.value=""; preview.classList.add('hidden'); imageData=""; }
-
 function cancelEdit(){ modal.classList.add('hidden'); if(tempRect){layerGroup.removeLayer(tempRect); tempRect=null;} if(shiftMarker){layerGroup.removeLayer(shiftMarker); shiftMarker=null;} setEditUI(false); }
-
 fileInput.onchange=e=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=x=>{ imageData=x.target.result; preview.src=imageData; preview.classList.remove('hidden'); }; r.readAsDataURL(f); };
-
-function save(){ let data={note:note.value,image:imageData}; if(tempRect){ const b=tempRect.getBounds(); data.bounds={south:b.getSouth(),west:b.getWest(),north:b.getNorth(),east:b.getEast()}; layerGroup.removeLayer(tempRect); tempRect=null;} if(shiftMarker){ const latlng=shiftMarker.getLatLng(); data.bounds={lat:latlng.lat,lng:latlng.lng}; layerGroup.removeLayer(shiftMarker); shiftMarker=null;} localStorage.setItem(currentKey,JSON.stringify(data)); cancelEdit(); loadPins(); }
+function save(){
+    let data={note:note.value,image:imageData};
+    if(tempRect){ const b=tempRect.getBounds(); data.bounds={south:b.getSouth(),west:b.getWest(),north:b.getNorth(),east:b.getEast()}; layerGroup.removeLayer(tempRect); tempRect=null;}
+    if(shiftMarker){ const latlng=shiftMarker.getLatLng(); data.bounds={lat:latlng.lat,lng:latlng.lng}; layerGroup.removeLayer(shiftMarker); shiftMarker=null;}
+    localStorage.setItem(currentKey,JSON.stringify(data));
+    cancelEdit(); loadPins();
+}
 
 function clear(){ layerGroup.clearLayers(); }
 
@@ -160,26 +178,53 @@ function createPin(d,k){
     if(!d) return;
     let marker;
     if(d.bounds.lat!==undefined){
-        marker=L.marker([d.bounds.lat,d.bounds.lng],{icon:L.divIcon({className:'pinWrap',html:'<svg width="30" height="30" viewBox="0 0 24 24"><path fill="#ff0000" stroke="white" stroke-width="1" d="M12 2l3 7h7l-5.5 4 2 7-6-4-6 4 2-7-5.5-4h7z"/></svg>',iconSize:[30,30],iconAnchor:[15,30]}),draggable:true});
-        marker.on('click',()=>{ const path = marker.getElement().querySelector('path'); path.setAttribute('fill',['#ff0000','#00f','#0f0','#ff0'][Math.floor(Math.random()*4)]); });
-    } else { const b=d.bounds; const lat=(b.south+b.north)/2; const lng=(b.west+b.east)/2; marker=L.marker([lat,lng],{icon:L.divIcon({className:'pinWrap',html:'<svg width="40" height="40" viewBox="0 0 24 24"><path fill="#ff3b3b" stroke="white" stroke-width="2" d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z"/><circle cx="12" cy="9" r="3" fill="white"/></svg>',iconSize:[40,40],iconAnchor:[20,40]})});}
+        marker=L.marker([d.bounds.lat,d.bounds.lng],{
+            icon:L.divIcon({
+                className:'pinWrap',
+                html:`<svg width="30" height="30" viewBox="0 0 24 24">
+                        <path fill="#ff0000" stroke="white" stroke-width="1"
+                              d="M12 2l3 7h7l-5.5 4 2 7-6-4-6 4 2-7-5.5-4h7z"/>
+                      </svg>`,
+                iconSize:[30,30],
+                iconAnchor:[15,30]
+            }),
+            draggable:true
+        });
+        marker.on('click',()=>{ const path=marker.getElement().querySelector('path'); path.setAttribute('fill',['#ff0000','#00f','#0f0','#ff0'][Math.floor(Math.random()*4)]); });
+    } else {
+        const b=d.bounds;
+        const lat=(b.south+b.north)/2;
+        const lng=(b.west+b.east)/2;
+        marker=L.marker([lat,lng],{
+            icon:L.divIcon({
+                className:'pinWrap',
+                html:`<svg width="40" height="40" viewBox="0 0 24 24">
+                        <path fill="#ff3b3b" stroke="white" stroke-width="2"
+                              d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z"/>
+                        <circle cx="12" cy="9" r="3" fill="white"/>
+                      </svg>`,
+                iconSize:[40,40], iconAnchor:[20,40]
+            })
+        });
+    }
     marker.addTo(layerGroup);
     marker.on('click',()=>{ pinnedOpen=true; selectedKey=k; showUI(d); });
     marker.on('mouseover',()=>{ if(!pinnedOpen) showUI(d); });
     marker.on('mouseout',()=>{ if(!pinnedOpen) viewUI.classList.add('hidden'); });
 }
 
-function showUI(d){ viewUI.classList.remove('hidden'); viewText.innerText=d.note||""; if(d.image){viewImg.src=d.image; viewImg.classList.remove('hidden');} else viewImg.classList.add('hidden'); }
+function showUI(d){
+    viewUI.classList.remove('hidden');
+    viewText.innerText=d.note||"";
+    if(d.image){ viewImg.src=d.image; viewImg.classList.remove('hidden'); } else viewImg.classList.add('hidden');
+}
 
 deleteBtn.onclick=(e)=>{ e.stopPropagation(); if(!selectedKey) return; localStorage.removeItem(selectedKey); selectedKey=null; pinnedOpen=false; viewUI.classList.add('hidden'); loadPins(); };
-
 document.addEventListener('click',(e)=>{ if(!e.target.closest('#viewUI, #modal, .leaflet-marker-icon')){ pinnedOpen=false; selectedKey=null; viewUI.classList.add('hidden'); } });
-
 document.addEventListener('keydown',(e)=>{ if(e.key==='Shift') shiftOverlay.classList.add('active'); });
 document.addEventListener('keyup',(e)=>{ if(e.key==='Shift') shiftOverlay.classList.remove('active'); });
 
 function loadPins(){ clear(); for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); try{ const d=JSON.parse(localStorage.getItem(k)); createPin(d,k); }catch{} } }
 </script>
-
 </body>
 </html>
