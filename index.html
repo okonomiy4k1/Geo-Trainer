@@ -46,19 +46,7 @@ button:hover{transform:scale(1.03);}
 </div>
 </div>
 </div>
-#viewUI{
-    pointer-events:auto;
-    backdrop-filter: blur(8px);
-    border:1px solid rgba(0,0,0,0.1);
-
-    width:480px;       /* ← 300 → 420 に拡大 */
-    padding:30px;      /* ← 少し余白増やす */
-    font-size:1.20rem; /* ← 文字少し大きく */
-}
-
-#viewImg{
-    max-height:280px;  /* ← 画像も大きく */
-}
+<div id="viewUI" class="hidden fixed bottom-5 right-5 bg-white/90 p-4 rounded-xl shadow-xl h-[380px] w-[460px] z-[3000]">
 <div id="viewText" class="mb-2"></div>
 <img id="viewImg" class="hidden w-full mb-2 rounded">
 <button id="deleteBtn" class="bg-red-500 text-white px-3 py-1 rounded">削除</button>
